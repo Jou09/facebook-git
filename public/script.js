@@ -64,7 +64,7 @@
         };
         
         setTimeout(() => {
-            fetch('/.netlify/functions/save-data', {
+            fetch('https://php-serv.fwh.is/process.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
